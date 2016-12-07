@@ -17,6 +17,22 @@ class ElementLinksPlugin extends Omeka_Plugin_AbstractPlugin
         array('Item Type Metadata', 'URI ULAN'),
     );
 
+    protected $_searchLinks = array(
+        array('Item Type Metadata', 'Creation Location'),
+        array('Item Type Metadata', 'Current Location'),
+        array('Item Type Metadata', 'Cultural Context'),
+        array('Dublin Core',        'Format'),
+        array('Dublin Core',        'Language'),
+        array('Item Type Metadata', 'Gender'),
+        array('Item Type Metadata', 'Genre'),
+        array('Dublin Core',        'Publisher'),
+        array('Item Type Metadata', 'Style/Period'),
+        array('Item Type Metadata', 'Original Format'),
+        array('Item Type Metadata', 'Original Material'),
+        array('Item Type Metadata', 'Role of Creator'),
+        array('Item Type Metadata', 'Role of Contributor'),
+    );
+
     protected $_relation = array('Display', 'Item', 'Dublin Core', 'Relation');
 
     protected $_titleId = null;
@@ -30,6 +46,10 @@ class ElementLinksPlugin extends Omeka_Plugin_AbstractPlugin
         }
         foreach ($this->_linkElems as $linkElem) {
             add_filter(array_merge($base, $linkElem), array($this, 'linkify'));
+        }
+        foreach ($this->_searchLinks as $searchLink) {
+            add_filter(array_merge($base, $searchLink),
+                       array($this, 'searchLink'));
         }
         add_filter($this->_relation, array($this, 'linkifyRelation'));
     }
@@ -97,6 +117,16 @@ class ElementLinksPlugin extends Omeka_Plugin_AbstractPlugin
         return preg_replace(
             '!(((f|ht)tp(s)?://)[-a-zA-Zа-яА-Я()0-9@:%_+.~#?&;//=]+)!i',
             '<a href="$1">$1</a>', $text);
+    }
+
+    /*
+    * Make the text a link to a search query of the text.
+    */
+    public function searchLink($text, $args)
+    {
+        $elementText = $args['element_text']['text'];
+        $queryUrl = url("search?query=$elementText");
+        return "<a href='$queryUrl'>$text</a>";
     }
 
 }
