@@ -17,6 +17,8 @@ class ElementLinksPlugin extends Omeka_Plugin_AbstractPlugin
         array('Item Type Metadata', 'URI ULAN'),
     );
 
+    protected $_relation = array('Display', 'Item', 'Dublin Core', 'Relation');
+
     protected $_titleId = null;
 
     public function hookInitialize()
@@ -29,6 +31,7 @@ class ElementLinksPlugin extends Omeka_Plugin_AbstractPlugin
         foreach ($this->_linkElems as $linkElem) {
             add_filter(array_merge($base, $linkElem), array($this, 'linkify'));
         }
+        add_filter($this->_relation, array($this, 'linkifyRelation'));
     }
 
     public function getTitleId()
@@ -81,8 +84,19 @@ class ElementLinksPlugin extends Omeka_Plugin_AbstractPlugin
     /*
     * For elements that are only a URL.
     */
-    public function linkify($text, $args) {
+    public function linkify($text, $args)
+    {
         return "<a href='$text'>$text</a>";
+    }
+
+    /*
+    * Replace bare URLs with clickable links.
+    */
+    public function linkifyRelation($text, $args)
+    {
+        return preg_replace(
+            '!(((f|ht)tp(s)?://)[-a-zA-Zа-яА-Я()0-9@:%_+.~#?&;//=]+)!i',
+            '<a href="$1">$1</a>', $text);
     }
 
 }
