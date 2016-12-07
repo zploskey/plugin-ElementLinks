@@ -39,7 +39,7 @@ class ElementLinksPlugin extends Omeka_Plugin_AbstractPlugin
 
     public function hookInitialize()
     {
-        $this->_titleId = $this->recordTitleId();
+        $this->_titleId = $this->fetchTitleId();
         $base = array('Display', 'Item');
         foreach ($this->_titleElems as $elem) {
             add_filter(array_merge($base, $elem), array($this, 'linkifyTitle'));
@@ -56,23 +56,23 @@ class ElementLinksPlugin extends Omeka_Plugin_AbstractPlugin
 
     public function getTitleId()
     {
+        if (!isset($this->_titleId)) {
+            $this->_titleId = $this->fetchTitleId();
+        }
         return $this->_titleId;
     }
 
-    public function recordTitleId()
+    public function fetchTitleId()
     {
         $db = $this->_db;
-        $res = $db->query(
-            "SELECT id FROM {$db->Element} WHERE name LIKE 'Title' LIMIT 1"
-        )->fetch();
+        $id = $db->fetchOne(
+            "SELECT id FROM {$db->Element} WHERE name LIKE 'Title' LIMIT 1");
 
-        if ($res) {
-            $titleId = $res['id'];
-        } else {
-            $titleId = null;
+        if (!$id) {
+            $id = null;
         }
 
-        return $titleId;
+        return $id;
     }
 
     /**
@@ -81,7 +81,7 @@ class ElementLinksPlugin extends Omeka_Plugin_AbstractPlugin
     public function linkifyTitle($text, $args) {
         // Get the original element text before any filtering
         $elementText = $args['element_text']['text'];
-        if (trim($elementText) == '') {
+        if (trim($elementText) == '' OR !isset($this->_titleId)) {
             return $text;
         }
 
@@ -90,13 +90,13 @@ class ElementLinksPlugin extends Omeka_Plugin_AbstractPlugin
         $res = $db->query("
             SELECT record_id FROM {$db->ElementText}
             WHERE element_id = $titleId AND text LIKE '$elementText'
-            ")->fetch();
+            ")->fetchAll();
 
         if (count($res) != 1) {
             return $text;
         }
 
-        $record_id = $res['record_id'];
+        $record_id = $res[0]['record_id'];
         $url = url("items/show/$record_id");
         $link = "<a href='$url'>$text</a>";
         return $link;
