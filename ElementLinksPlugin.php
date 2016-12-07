@@ -9,6 +9,7 @@ class ElementLinksPlugin extends Omeka_Plugin_AbstractPlugin
     protected $_titleElems = array(
         array('Dublin Core', 'Creator'),
         array('Dublin Core', 'Contributor'),
+        array('Dublin Core', 'Is Part Of'),
     );
 
     protected $_linkElems = array(
