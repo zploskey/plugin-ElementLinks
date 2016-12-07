@@ -43,27 +43,31 @@ class ElementLinksPlugin extends Omeka_Plugin_AbstractPlugin
         return $titleId;
     }
 
+    /**
+    * Make the text into a link to the record with a matching Title.
+    */
     public function linkify($text, $args) {
-        if (trim($text) == '') {
-            return $text;
-        }
-        
-        $titleId = $this->getTitleId();
-        $db = get_db();
-        $sql = "SELECT record_id FROM {$db->ElementText} "
-             . "WHERE element_id = $titleId AND text LIKE '$text'";
-        $statement = $db->query($sql);
-        
-        if ($statement->rowCount() != 1) {
+        // Get the original element text before any filtering
+        $elementText = $args['element_text']['text'];
+        if (trim($elementText) == '') {
             return $text;
         }
 
-        $res = $statement->fetch();
+        $titleId = $this->getTitleId();
+        $db = get_db();
+        $res = $db->query("
+            SELECT record_id FROM {$db->ElementText}
+            WHERE element_id = $titleId AND text LIKE '$elementText'
+            ")->fetch();
+
+        if (count($res) != 1) {
+            return $text;
+        }
+
         $record_id = $res['record_id'];
         $url = url("items/show/$record_id");
-        $link = "<a href='$url'>$text</a>"; 
+        $link = "<a href='$url'>$text</a>";
         return $link;
     }
 
 }
-
