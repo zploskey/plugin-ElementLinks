@@ -17,7 +17,7 @@ class ElementLinksPlugin extends Omeka_Plugin_AbstractPlugin
         array('Item Type Metadata', 'URI ULAN'),
     );
 
-    protected $_searchLinks = array(
+    protected $_browseLinks = array(
         array('Item Type Metadata', 'Creation Location'),
         array('Item Type Metadata', 'Current Location'),
         array('Item Type Metadata', 'Cultural Context'),
@@ -47,9 +47,9 @@ class ElementLinksPlugin extends Omeka_Plugin_AbstractPlugin
         foreach ($this->_linkElems as $linkElem) {
             add_filter(array_merge($base, $linkElem), array($this, 'linkify'));
         }
-        foreach ($this->_searchLinks as $searchLink) {
-            add_filter(array_merge($base, $searchLink),
-                       array($this, 'searchLink'));
+        foreach ($this->_browseLinks as $browseLink) {
+            add_filter(array_merge($base, $browseLink),
+                       array($this, 'browseLink'));
         }
         add_filter($this->_relation, array($this, 'linkifyRelation'));
     }
@@ -122,10 +122,10 @@ class ElementLinksPlugin extends Omeka_Plugin_AbstractPlugin
     /*
     * Make the text a link to a search query of the text.
     */
-    public function searchLink($text, $args)
+    public function browseLink($text, $args)
     {
         $elementText = $args['element_text']['text'];
-        $queryUrl = url("search?query=$elementText");
+        $queryUrl = url("items/browse?search=$elementText");
         return "<a href='$queryUrl'>$text</a>";
     }
 
