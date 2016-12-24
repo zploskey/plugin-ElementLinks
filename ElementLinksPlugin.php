@@ -77,6 +77,8 @@ class ElementLinksPlugin extends Omeka_Plugin_AbstractPlugin
 
     /**
     * Make the text into a link to the record with a matching Title.
+    * If the multilanguage plugin is installed, it also translates
+    * the element text.
     */
     public function linkifyTitle($text, $args) {
         // Get the original element text before any filtering
@@ -97,6 +99,21 @@ class ElementLinksPlugin extends Omeka_Plugin_AbstractPlugin
         }
 
         $record_id = $res[0]['record_id'];
+
+        $translationTable = $db->getTable('MultilanguageTranslation');
+        if ($translationTable) {
+            $record = $args['record'];
+            $session = new Zend_Session_Namespace;
+            if (isset($session->lang)) {
+                $locale = $session->lang;
+                // Fetch the translation as if this were the Title field
+                $translation = $translationTable->getTranslation($record_id,
+                    get_class($record), $titleId, $locale, $elementText);
+                if ($translation) {
+                    $text = $translation->translation;
+                }
+            }
+        }
         $url = url("items/show/$record_id");
         $link = "<a href='$url'>$text</a>";
         return $link;
