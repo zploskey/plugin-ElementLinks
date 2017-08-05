@@ -6,31 +6,37 @@ class ElementLinksPlugin extends Omeka_Plugin_AbstractPlugin
         'initialize',
     );
 
-    protected $_titleElems = array(
-        array('Dublin Core', 'Creator'),
-        array('Dublin Core', 'Contributor'),
-        array('Dublin Core', 'Is Part Of'),
+    protected $_browse = array(
+        array('Item Type Metadata', 'Cultural Context'),
+        array('Dublin Core',        'Format'),
+        array('Item Type Metadata', 'Gender'),
+        array('Item Type Metadata', 'Genre'),
+        array('Dublin Core',        'Language'),
+        array('Item Type Metadata', 'Original Format'),
+        array('Item Type Metadata', 'Original Material'),
+        array('Dublin Core',        'Publisher'),
+        array('Item Type Metadata', 'Style/Period'),
     );
 
-    protected $_linkElems = array(
+    protected $_links = array(
         array('Item Type Metadata', 'URI LOC'),
         array('Item Type Metadata', 'URI ULAN'),
     );
 
-    protected $_browseLinks = array(
+    protected $_locations = array(
         array('Item Type Metadata', 'Creation Location'),
         array('Item Type Metadata', 'Current Location'),
-        array('Item Type Metadata', 'Cultural Context'),
-        array('Dublin Core',        'Format'),
-        array('Dublin Core',        'Language'),
-        array('Item Type Metadata', 'Gender'),
-        array('Item Type Metadata', 'Genre'),
-        array('Dublin Core',        'Publisher'),
-        array('Item Type Metadata', 'Style/Period'),
-        array('Item Type Metadata', 'Original Format'),
-        array('Item Type Metadata', 'Original Material'),
+    );
+
+    protected $_roles = array(
         array('Item Type Metadata', 'Role of Creator'),
         array('Item Type Metadata', 'Role of Contributor'),
+    );
+
+    protected $_titles = array(
+        array('Dublin Core', 'Creator'),
+        array('Dublin Core', 'Contributor'),
+        array('Dublin Core', 'Is Part Of'),
     );
 
     protected $_relation = array('Display', 'Item', 'Dublin Core', 'Relation');
@@ -41,24 +47,26 @@ class ElementLinksPlugin extends Omeka_Plugin_AbstractPlugin
     {
         $this->_titleId = $this->fetchTitleId();
         $base = array('Display', 'Item');
-        foreach ($this->_titleElems as $elem) {
-            add_filter(array_merge($base, $elem), array($this, 'linkifyTitle'));
+        foreach ($this->_browse as $browse) {
+            add_filter(array_merge($base, $browse), array($this, 'linkBrowse'));
         }
-        foreach ($this->_linkElems as $linkElem) {
-            add_filter(array_merge($base, $linkElem), array($this, 'linkify'));
+        foreach ($this->_titles as $title) {
+            add_filter(array_merge($base, $title), array($this, 'linkTitle'));
         }
-        foreach ($this->_browseLinks as $browseLink) {
-            add_filter(array_merge($base, $browseLink),
-                       array($this, 'browseLink'));
+        foreach ($this->_links as $link) {
+            add_filter(array_merge($base, $link), array($this, 'link'));
         }
-        add_filter($this->_relation, array($this, 'linkifyRelation'));
+        foreach ($this->_locations as $loc) {
+            add_filter(array_merge($base, $loc), array($this, 'linkLocation'));
+        }
+        foreach ($this->_roles as $role) {
+            add_filter(array_merge($base, $role), array($this, 'linkRole'));
+        }
+        add_filter($this->_relation, array($this, 'linkRelation'));
     }
 
     public function getTitleId()
     {
-        if (!isset($this->_titleId)) {
-            $this->_titleId = $this->fetchTitleId();
-        }
         return $this->_titleId;
     }
 
@@ -80,15 +88,17 @@ class ElementLinksPlugin extends Omeka_Plugin_AbstractPlugin
     * If the multilanguage plugin is installed, it also translates
     * the element text.
     */
-    public function linkifyTitle($text, $args) {
+    public function linkTitle($text, $args) {
         // Get the original element text before any filtering
         $elementText = $args['element_text']['text'];
-        if (trim($elementText) == '' OR !isset($this->_titleId)) {
+        if (trim($elementText) == '') {
             return $text;
         }
 
         $titleId = $this->getTitleId();
-        $db = get_db();
+
+        $db = $this->_db;
+        // TODO: don't include non-public items
         $res = $db->query("
             SELECT record_id FROM {$db->ElementText}
             WHERE element_id = $titleId AND text LIKE '$elementText'
@@ -121,7 +131,7 @@ class ElementLinksPlugin extends Omeka_Plugin_AbstractPlugin
     /*
     * For elements that are only a URL.
     */
-    public function linkify($text, $args)
+    public function link($text, $args)
     {
         return "<a href='$text'>$text</a>";
     }
@@ -129,7 +139,7 @@ class ElementLinksPlugin extends Omeka_Plugin_AbstractPlugin
     /*
     * Replace bare URLs with clickable links.
     */
-    public function linkifyRelation($text, $args)
+    public function linkRelation($text, $args)
     {
         return preg_replace(
             '!(((f|ht)tp(s)?://)[-a-zA-Zа-яА-Я()0-9@:%_+.~#?&;//=]+)!i',
@@ -137,13 +147,66 @@ class ElementLinksPlugin extends Omeka_Plugin_AbstractPlugin
     }
 
     /*
-    * Make the text a link to a search query of the text.
+    * Make the text a link to a search query of the text on the same element.
     */
-    public function browseLink($text, $args)
+    public function linkBrowse($text, $args)
     {
-        $elementText = $args['element_text']['text'];
-        $queryUrl = url("items/browse?search=$elementText");
-        return "<a href='$queryUrl'>$text</a>";
+        $elementText = $args['element_text'];
+
+        if (trim($text) == '' OR !$elementText) {
+            return $text;
+        }
+
+        $params = array('advanced' => array(array(
+            'element_id' => $elementText->element_id,
+            'type' => 'is exactly',
+            'terms' => $elementText->text,
+        )));
+
+        $url = url('items/browse', $params);
+        return "<a href='$url'>$text</a>";
+    }
+
+    public function linkMultiElement($text, $args, $elements)
+    {
+        $elementText = $args['element_text'];
+
+        if (trim($text) == '' OR !$elementText) {
+            return $text;
+        }
+
+        $db = $this->_db;
+
+        $advanced = array();
+        $index = 0;
+        foreach ($elements as $el) {
+            $element = $db->getTable('Element')
+                ->findByElementSetNameAndElementName($el[0], $el[1]);
+            $triplet = array(
+                'element_id' => $element->id,
+                'type' => 'is exactly',
+                'terms' => $elementText->text,
+            );
+            if ($index++ !== 0) {
+                $triplet['joiner'] = 'or';
+            }
+            $advanced[] = $triplet;
+        }
+
+        $params = array('advanced' => $advanced);
+
+        $url = url('items/browse', $params);
+        return "<a href='$url'>$text</a>";
+    }
+
+    public function linkLocation($text, $args)
+    {
+        return $this->linkMultiElement($text, $args, $this->_locations);
+    }
+
+    public function linkRole($text, $args)
+    {
+        return $this->linkMultiElement($text, $args, $this->_roles);
     }
 
 }
